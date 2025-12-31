@@ -25,6 +25,7 @@ des métadonnées variables
 Le rôle du Data Engineer est de construire un pipeline fiable permettant de fournir des données propres, cohérentes et exploitables par les Data Scientists.
 
 ## 2. Architecture de l’étape 1
+
 Vue d’ensemble
 
 ```java
@@ -57,6 +58,7 @@ s3://p8-meteo/
     └── quality_report.json
 ```
 
+
 ## 3. Collecte des données (Airbyte)
 
 La collecte est réalisée avec Airbyte, qui permet de :
@@ -72,7 +74,9 @@ Les données sont exportées au format JSONL dans un bucket S3.
 👉 Aucune transformation n’est faite dans Airbyte
 Toute la logique métier est volontairement gérée côté Python.
 
+
 ### 3.1 Installation et configuration d’Airbyte
+
 Prérequis :
 
 Docker Desktop installé et en fonctionnement
@@ -87,8 +91,10 @@ https://docs.airbyte.com/platform/using-airbyte/getting-started/oss-quickstart
 Accéder à Airbyte :
 Ouvrir un navigateur → http://localhost:8000
 
+
 ### 3.2 Préparation AWS
-    #### 3.2.1 Création d’un bucket S3
+
+#### 3.2.1 Création d’un bucket S3
 
 Connectez-vous à votre console AWS.
 
@@ -100,7 +106,8 @@ Configurez la région (ex : eu-west-3)
 
 Laissez les autres paramètres par défaut → Create bucket
 
-    #### 3.2.2 Création d’un utilisateur IAM pour Airbyte
+
+#### 3.2.2 Création d’un utilisateur IAM pour Airbyte
 
 Aller dans IAM → Users → Add user
 
@@ -119,6 +126,7 @@ AWS_ACCESS_KEY_ID
 AWS_SECRET_ACCESS_KEY
 
 ⚠️ Important : Conservez-les précieusement, ne les mettez pas dans Git.
+
 
 ### 3.3 Connexion Airbyte → AWS S3 (Destination)
 
@@ -140,8 +148,11 @@ Region → eu-west-3
 
 Testez la connexion → Save
 
+
 ### 3.4 Configuration Airbyte
-    Définition des sources et de la destination dans Airbyte
+
+Définition des sources et de la destination dans Airbyte
+
 #### 3.4.1 Définir les sources météo
 
 Dans Airbyte :
@@ -164,6 +175,7 @@ Tester la connexion → Save
 
 Répétez pour toutes les sources (InfoClimat, France_data, Belgique_data).
 
+
 #### 3.4.2 Définir la destination S3
 
 Ajouter une destination → choisir Amazon S3
@@ -181,6 +193,7 @@ Region → eu-west-3
 Format → JSONL
 
 Tester la connexion → Save
+
 
 #### 3.4.3 Créer la connexion (Sync) Airbyte
 
@@ -222,7 +235,7 @@ Schéma cible (logique)
   "timestamp": "ISO-8601",
   "measurements": { ... }
 }
-```bash
+```
 
 Points techniques importants
 Weather Underground
@@ -242,6 +255,7 @@ Les métadonnées des stations sont extraites et intégrées
 Toutes les mesures disponibles sont conservées (température, pression, pluie, neige, vent, etc.)
 
 Les valeurs manquantes sont gérées explicitement (None ou 0 selon le cas)
+
 
 
 ## 5. Contrôle qualité des données
@@ -266,7 +280,9 @@ Taux d’erreur        : 0.0 %
 
 Ces résultats garantissent que les données sont prêtes pour une intégration en base NoSQL.
 
+
 ## 6. Prérequis techniques
+
 Environnement
 
 Windows
@@ -277,7 +293,9 @@ Compte AWS actif
 
 Docker Desktop installé (utilisé dans les étapes suivantes)
 
+
 ## 7. Configuration AWS
+
 Installation de l’AWS CLI
 
 Télécharger et installer l’AWS CLI depuis :
@@ -308,12 +326,14 @@ aws s3 ls
 
 Le bucket p8-meteo doit apparaître.
 
+
 ## 8. Dépendances Python
+
 requirements.txt
 ```bash
 boto3==1.42.19
 python-dateutil==2.9.0
-```bash
+```
 
 Installation
 
@@ -323,7 +343,9 @@ Avec un environnement virtuel (recommandé) :
 pip install -r requirements.txt
 ```
 
+
 ## 9. Exécution des scripts
+
 Transformation des données
 ```bash
 python transform_weather_s3.py
@@ -343,6 +365,8 @@ Résultat :
 ```bash
 p8-processed/quality_report.json
 ```
+
+
 ## 10. Conclusion de l’étape 1
 
 À l’issue de cette étape :
