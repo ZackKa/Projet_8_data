@@ -380,3 +380,210 @@ Leur qualité est mesurée et validée
 Le format est directement compatible MongoDB
 
 👉 Le pipeline est prêt pour l’Étape 2 : intégration dans MongoDB, mise en place du schéma et des collections.
+
+
+# ÉTAPE 2 — Migration des données vers MongoDB
+
+## 1🎯 Objectif de l’étape
+
+Cette étape consiste à importer les données météorologiques préalablement transformées (Étape 1) depuis Amazon S3 vers une base de données MongoDB, tout en :
+
+respectant un schéma commun pour toutes les sources,
+
+assurant la qualité et l’intégrité des données post-migration,
+
+mettant en place des contrôles automatiques,
+
+documentant clairement le processus.
+
+
+## 2🧱 Architecture retenue
+
+Source des données :
+Amazon S3
+s3://p8-meteo/p8-processed/weather_mongodb_ready.json
+
+Base de données :
+MongoDB en local (Docker / MongoDB Community)
+
+Nom de la base :
+p8_greenandcoop_forecast
+
+Collection unique :
+weather_data
+
+👉 Le choix d’une seule collection permet :
+
+d’unifier les requêtes,
+
+de faciliter l’agrégation multi-sources,
+
+de garantir un schéma homogène.
+
+
+## 3📄 Format des données importées
+
+Les données sont stockées dans un fichier JSON compatible MongoDB, contenant une liste de documents standardisés.
+
+Structure logique d’un document :
+{
+  "source": "weather_underground | infoclimat",
+  "station": {
+    "station_id": "string",
+    "name": "string",
+    "latitude": float,
+    "longitude": float,
+    "elevation": int
+  },
+  "timestamp": "ISO-8601",
+  "measurements": {
+    "temperature_c": float,
+    "humidity_pct": float,
+    "pressure_hpa": float,
+    "wind_speed": float,
+    "wind_gust": float,
+    "precip_mm": float
+  }
+}
+
+
+Ce schéma est identique pour toutes les sources, conformément aux exigences du projet.
+
+
+## 4🔁 Processus suivi (logigramme)
+
+Le processus a été formalisé sous forme de logigramme visuel, basé sur les étapes suivantes :
+
+- Définir sources météo dans Airbyte (étape 1)
+
+- Définir destination S3 dans Airbyte (étape 1)
+
+- Créer la connexion (Sync) Airbyte (étape 1)
+
+- Airbyte collecte les données → Stockage dans S3 (étape 1)
+
+- Lecture du fichier JSON depuis S3
+
+- Chargement des documents en mémoire
+
+- Connexion à MongoDB
+
+- Insertion des documents dans la collection
+
+- Vérifications post-import :
+
+nombre total de documents,
+
+doublons,
+
+valeurs manquantes sur champs critiques
+
+- Affichage des résultats en console
+
+
+## 5 🧪 Contrôles qualité post-migration
+
+Après l’import, le script exécute automatiquement plusieurs contrôles :
+
+✔️ Indicateurs mesurés
+
+Nombre total de documents importés
+
+Nombre de doublons (station_id + timestamp)
+
+Nombre de documents sans :
+
+température
+
+humidité
+
+pression
+
+✔️ Résultat obtenu
+Total documents en base : 4950
+Nombre de doublons détectés : 0
+Documents sans température : 0
+Documents sans humidité : 0
+Documents sans pression : 0
+
+
+👉 Ces résultats confirment :
+
+l’intégrité du schéma,
+
+l’absence de perte de données,
+
+une migration fiable.
+
+
+## 6 🐍 Script utilisé
+
+Un script Python unique est utilisé pour :
+
+récupérer le fichier depuis S3,
+
+importer les données dans MongoDB,
+
+exécuter les contrôles qualité,
+
+afficher les résultats via des print() explicites.
+
+Script principal
+import_s3_to_mongodb.py
+
+
+## 7 ▶️ Exécution du script
+
+### 1️⃣ Pré-requis
+
+MongoDB lancé en local (Docker ou service local)
+
+Accès AWS configuré
+
+Environnement Python actif
+
+📦 Dépendances Python
+
+Installer pymongo avec la version dans requirements.txt
+
+Le fichier requirements.txt inclut notamment :
+
+boto3==1.42.19
+python-dateutil==2.9.0
+pymongo==4.15.4
+
+
+👉 pymongo est utilisé pour la communication avec MongoDB
+👉 boto3 permet l’accès aux objets stockés sur S3
+
+### 2️⃣ Commande d’exécution
+python import_s3_to_mongodb.py
+
+### 3️⃣ Résultat attendu en console
+Récupération du fichier depuis S3...
+Nombre de documents à importer : 4950
+Documents importés avec succès : 4950
+
+--- Vérification post-import ---
+Total documents en base : 4950
+Nombre de doublons détectés : 0
+Documents sans température : 0
+Documents sans humidité : 0
+Documents sans pression : 0
+
+--- Import terminé ---
+
+
+## 8 🔍 Visualisation des données
+
+Les données peuvent être visualisées avec MongoDB Compass :
+
+Base : p8_greenandcoop_forecast
+
+Collection : weather_data
+
+Répartition observée :
+
+Infoclimat : 1143 documents
+
+Weather Underground (France + Belgique) : 3807 documents
