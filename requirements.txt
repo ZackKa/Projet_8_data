@@ -1,0 +1,2 @@
+boto3==1.42.19
+python-dateutil==2.9.0
