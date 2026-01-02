@@ -608,21 +608,15 @@ L’objectif de cette étape est de conteneuriser la migration des données mét
 
 ## 2 🏗️ Architecture mise en place
 
-- 1 conteneur MongoDB
-
- - Image officielle mongo:7.0
-
- - Données persistées via un volume Docker
+ - 1 conteneur MongoDB
+  - Image officielle mongo:7.0
+  - Données persistées via un volume Docker
 
 - 1 conteneur Python
-
- - Exécute un script de migration
-
- - Télécharge les données depuis S3
-
- - Insère les documents dans MongoDB
-
- - Effectue des contrôles qualité post-import
+  - Exécute un script de migration
+  - Télécharge les données depuis S3
+  - Insère les documents dans MongoDB
+  - Effectue des contrôles qualité post-import
 
 Les deux conteneurs communiquent via le réseau Docker Compose par défaut.
 
