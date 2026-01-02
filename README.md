@@ -587,3 +587,178 @@ Répartition observée :
 Infoclimat : 1143 documents
 
 Weather Underground (France + Belgique) : 3807 documents
+
+
+# ÉTAPE 3
+
+Conteneurisation de la migration avec Docker
+
+## 1 🎯 Objectif de l’étape 3
+
+L’objectif de cette étape est de conteneuriser la migration des données météo depuis Amazon S3 vers MongoDB, afin de :
+
+- garantir la reproductibilité de l’environnement,
+
+- isoler les composants (base de données / script de migration),
+
+- persister les données via un volume Docker,
+
+- démontrer une migration automatisée et fiable.
+
+
+## 2 🏗️ Architecture mise en place
+
+- 1 conteneur MongoDB
+
+ - Image officielle mongo:7.0
+
+ - Données persistées via un volume Docker
+
+- 1 conteneur Python
+
+ - Exécute un script de migration
+
+ - Télécharge les données depuis S3
+
+ - Insère les documents dans MongoDB
+
+ - Effectue des contrôles qualité post-import
+
+Les deux conteneurs communiquent via le réseau Docker Compose par défaut.
+
+
+## 3 📁 Structure du projet (étape 3)
+
+```bash
+.
+├── docker-compose.yml
+├── Dockerfile
+├── requirements.txt
+├── .env
+├── import_s3_to_mongodb_conteneur.py
+```
+
+## 4 ⚙️ Configuration des variables d’environnement
+
+Le fichier .env (non versionné) contient :
+
+```env
+AWS_ACCESS_KEY_ID=************
+AWS_SECRET_ACCESS_KEY=************
+AWS_DEFAULT_REGION=eu-west-3
+
+MONGO_URI=mongodb://mongodb:27017
+```
+
+- Les credentials AWS permettent l’accès au bucket S3
+
+- mongodb correspond au nom du service Docker MongoDB
+
+
+## 5 🐳 docker-compose.yml (résumé)
+
+- MongoDB exposé sur le port local 27021
+
+- Volume Docker pour persister les données
+
+- Conteneur Python dépendant de MongoDB
+
+MongoDB reste accessible depuis l’hôte via MongoDB Compass :
+
+```bash
+mongodb://localhost:27021
+```
+
+## 6 📦 Volume Docker
+
+Un volume nommé est utilisé :
+
+```bash
+projet8_projet_8_mongo_data
+```
+
+Il garantit que les données MongoDB sont conservées même après :
+
+```bash
+docker compose down
+```
+
+## 7 🧠 Script de migration
+
+Le script import_s3_to_mongodb_conteneur.py effectue :
+
+- 1 Connexion à Amazon S3
+
+- 2 Téléchargement du fichier JSON final :
+
+```bash
+p8-meteo/p8-processed/weather_mongodb_ready.json
+```
+
+- 3 Insertion des documents dans MongoDB
+
+- 4 Contrôles qualité post-import :
+
+ - nombre total de documents
+
+ - doublons (station_id + timestamp)
+
+ - champs critiques manquants (température, humidité, pression)
+
+
+## 8 ▶️ Commandes à exécuter
+🔹 Build + lancement complet initial
+```bash
+docker compose up --build
+```
+🔹 Lancement sans rebuild
+```bash
+docker compose up
+```
+🔹 Arrêt des services
+```bash
+docker compose down
+```
+🔹 Vérifier les volumes
+```bash
+docker volume ls
+```
+🔹 Vérifier les conteneurs
+```bash
+docker ps -a
+```
+🔹 Inspecter un volume en particulier :
+```bash
+docker volume inspect projet_8_mongo_data
+```
+
+## 9 🔍 Vérifications attendues
+
+- Logs affichant :
+
+```bash
+Documents importés avec succès : 4950
+```
+
+MongoDB Compass :
+
+- Base : p8_greenandcoop_forecast
+
+- Collection : weather_data
+
+- 4950 documents présents
+
+Données toujours présentes après redémarrage
+
+
+## 10 ✅ Résultat
+
+Migration automatisée et reproductible
+
+Environnement isolé via Docker
+
+Données persistées
+
+Qualité des données contrôlée
+
+👉 Cette étape valide la conteneurisation complète de la chaîne de migration.

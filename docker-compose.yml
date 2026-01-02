@@ -1,0 +1,20 @@
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: mongodb_p8
+    ports:
+      - "27021:27017"
+    volumes:
+      - projet_8_mongo_data:/data/db
+
+  python-migration:
+    build: .
+    container_name: python_migration_p8
+    depends_on:
+      - mongodb
+    env_file:
+      - .env
+    command: python import_s3_to_mongodb_conteneur.py
+
+volumes:
+  projet_8_mongo_data:
