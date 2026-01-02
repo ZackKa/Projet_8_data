@@ -608,7 +608,7 @@ L’objectif de cette étape est de conteneuriser la migration des données mét
 
 ## 2 🏗️ Architecture mise en place
 
- - 1 conteneur MongoDB
+- 1 conteneur MongoDB
   - Image officielle mongo:7.0
   - Données persistées via un volume Docker
 
@@ -681,23 +681,20 @@ docker compose down
 
 Le script import_s3_to_mongodb_conteneur.py effectue :
 
-- 1 Connexion à Amazon S3
+- 1) Connexion à Amazon S3
 
-- 2 Téléchargement du fichier JSON final :
+- 2) Téléchargement du fichier JSON final :
 
 ```bash
 p8-meteo/p8-processed/weather_mongodb_ready.json
 ```
 
-- 3 Insertion des documents dans MongoDB
+- 3) Insertion des documents dans MongoDB
 
-- 4 Contrôles qualité post-import :
-
- - nombre total de documents
-
- - doublons (station_id + timestamp)
-
- - champs critiques manquants (température, humidité, pression)
+- 4) Contrôles qualité post-import :
+  - Nombre total de documents
+  - Doublons (station_id + timestamp)
+  - champs critiques manquants (température, humidité, pression)
 
 
 ## 8 ▶️ Commandes à exécuter
@@ -728,7 +725,7 @@ docker volume inspect projet_8_mongo_data
 
 ## 9 🔍 Vérifications attendues
 
-- Logs affichant :
+Logs affichant :
 
 ```bash
 Documents importés avec succès : 4950
