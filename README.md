@@ -753,3 +753,376 @@ Données persistées
 Qualité des données contrôlée
 
 👉 Cette étape valide la conteneurisation complète de la chaîne de migration.
+
+
+
+# 🚀 Étape 4 — Déploiement MongoDB sur AWS ECS, reporting et sauvegardes
+
+## 1 🎯 Objectif de l’étape
+
+L’objectif de cette étape est de déployer la base de données MongoDB dans le cloud AWS afin de :
+
+- reproduire l’architecture de migration dans un environnement distant,
+
+- rendre la base accessible à distance de manière sécurisée,
+
+- importer les données météo depuis Amazon S3 (source de vérité),
+
+- mesurer les performances d’accès aux données,
+
+- mettre en place une stratégie de sauvegarde,
+
+- assurer la supervision via des logs centralisés.
+
+Cette étape valide la capacité à industrialiser la chaîne data dans un environnement cloud.
+
+
+## 2 🧱 Contexte et prérequis
+
+À l’issue de l’Étape 3 :
+
+Les données météo (≈ 4950 documents) sont :
+
+- collectées via Airbyte,
+
+- transformées,
+
+- stockées dans Amazon S3.
+
+Le fichier final utilisé est :
+```bash
+s3://p8-meteo/p8-processed/weather_mongodb_ready.json
+```
+
+MongoDB fonctionne et est maîtrisé :
+
+- en local,
+
+- en environnement Docker.
+
+L’import S3 → MongoDB est automatisé via un script Python.
+
+👉 L’Étape 4 consiste à transposer cette architecture vers AWS, sans modifier la logique data.
+
+
+## 3 🏗 Architecture cible
+
+Architecture déployée :
+
+```sql
+[Poste local]
+     |
+     | (script Python)
+     v
+[S3 - p8-meteo]
+     |
+     v
+[MongoDB conteneurisé sur ECS Fargate]
+     |
+     +--> CloudWatch Logs
+     |
+     +--> Sauvegardes MongoDB vers S3
+```
+
+Choix techniques :
+
+Amazon ECS Fargate : exécution de conteneurs sans gestion d’instances EC2
+
+MongoDB officiel (mongo:7.0) : cohérence avec les étapes précédentes
+
+S3 :
+
+- stockage des données sources,
+
+- stockage des sauvegardes
+
+
+## 🧩 Phase 1 — Création de l’infrastructure AWS
+
+## 4 ☁️ Infrastructure AWS mise en place
+### 4.1 Région AWS
+
+Région utilisée :
+```bash
+eu-west-3 (Paris)
+```
+
+Justification :
+
+- cohérence avec les buckets S3,
+
+- faible latence,
+
+- conformité RGPD.
+
+⚠️ Les régions utilisées par Airbyte ou S3 n’impactent pas ECS tant que les permissions IAM sont correctes.
+
+
+## 4.2️ Création du cluster ECS
+
+Mode pas-à-pas :
+
+- Connecte-toi à la console AWS → Recherche ECS → Clique sur Clusters → Create Cluster
+
+- Sélectionne Networking only (Fargate)
+
+- Clique sur Next step
+
+ - Nom du cluster : p8-mongodb-cluster-v2
+
+- Laisse les autres paramètres par défaut (VPC, subnets, etc.)
+
+- Clique sur Create
+
+Justification Fargate :
+
+- Pas de gestion de serveur EC2
+
+- Scalabilité automatique
+
+- Idéal pour un projet Data orienté cloud
+
+## 4.3️ Task Definition MongoDB
+
+Mode pas-à-pas :
+
+- Dans la console ECS → Task Definitions → Create new Task Definition
+
+- Choisir Fargate → Next step
+
+- Nom de la Task : p8-mongodb-task
+
+- Task Role : None (ou ecsTaskExecutionRole par défaut)
+
+- Network Mode : awsvpc
+
+- Container Definitions → Add container
+
+- Container name : mongodb
+
+- Image : mongo:7.0
+
+- Memory Limits : 512 MiB (minimum suffisant pour le projet)
+
+- Port mappings : Container port 27017
+
+Storage and Logging :
+
+- Enable CloudWatch Logs
+
+- Log group : /ecs/mongodb-task-p8
+
+- Stream prefix : mongo
+
+- Region : eu-west-3
+
+Clique sur Add puis Create pour finaliser la Task Definition
+
+Notes :
+
+- Le port 27017 est le port standard MongoDB
+
+- Les logs sont visibles en temps réel dans CloudWatch
+
+## 4️.4 Sécurité réseau
+
+Mode pas-à-pas :
+
+Aller dans EC2 → Security Groups
+
+Créer un nouveau Security Group : mongodb-sg
+
+Ajouter une règle entrante :
+
+Type : Custom TCP Rule
+
+Port : 27017
+
+Source : IP de ton PC (x.x.x.x/32)
+
+Associer ce Security Group à la Task ECS lors du lancement
+
+## 4.5️ Lancement de la Task ECS
+
+Mode pas-à-pas :
+
+Dans ECS → Clusters → p8-mongodb-cluster-v2
+
+Clique sur Tasks → Run Task
+
+Launch type : Fargate
+
+Cluster VPC : choisir le VPC par défaut
+
+Subnet : sélectionner un subnet public
+
+Assign public IP : Enabled
+
+Security group : mongodb-sg
+
+Task Definition : p8-mongodb-task
+
+Clique sur Run Task
+
+📌 Une fois la Task lancée, tu peux récupérer l’IP publique dans la colonne Public IP pour te connecter depuis MongoDB Compass ou tes scripts Python :
+
+mongodb://<IP_PUBLIQUE_ECS>:27017
+
+
+## 📥 Phase 2 — Import des données depuis S3 vers MongoDB ECS
+
+## 5 🎯 Principe
+
+👉 Les données ne sont pas copiées depuis MongoDB local
+👉 Elles sont réimportées proprement depuis S3, source de vérité du projet.
+
+Script utilisé : import_s3_to_aws_ECS.py
+Rôle du script
+
+Lire le fichier JSON depuis S3
+
+Insérer les documents dans MongoDB ECS
+
+Vérifier :
+
+- nombre de documents ;
+
+- doublons ;
+
+- valeurs critiques manquantes
+
+```bash
+Configuration MongoDB
+MONGO_URI_AWS = os.getenv(
+    "MONGO_URI_AWS",
+    "mongodb://<IP_PUBLIQUE_ECS>:27017"
+)
+```
+
+➡️ Le script est exécuté en local, ce qui est explicitement autorisé par l’énoncé.
+
+Commande d’exécution
+```bash
+python import_s3_to_aws_ECS.py
+```
+Résultat obtenu
+```bash
+4950 documents importés
+
+0 doublon
+
+0 valeur critique manquante
+```
+Données visibles dans MongoDB Compass
+
+##⏱ Phase 3 — Mesure du temps d’accessibilité aux données
+
+## 6 🎯 Objectif
+
+Mesurer le temps réel d’exécution d’une requête MongoDB sur une base distante hébergée sur AWS.
+
+Principe : 
+
+- Script Python exécuté en local
+
+- Connexion à MongoDB ECS
+
+- Requête ciblée :
+
+ - une date ;
+
+ - une station ;
+
+- Mesure via time.perf_counter()
+
+Exemple de métrique
+Temps d’exécution de la requête : 0.320 secondes
+
+
+👉 Résultat exploitable dans le reporting.
+
+## 💾 Phase 4 — Sauvegarde de la base MongoDB
+## 7 🎯 Objectif
+
+Mettre en place une stratégie de sauvegarde cloud fiable et reproductible.
+
+Outil utilisé :
+```bash
+mongodump
+```
+
+Installation locale
+
+Ajout au PATH système Windows
+
+Commande exécutée dans le script
+```bash
+mongodump \
+  --uri="mongodb://<IP_PUBLIQUE_ECS>:27017" \
+  --archive="mongodb_backup_2026-01-05_14-06-15.gz" \
+  --gzip
+```
+
+Résultat
+```bash
+done dumping p8_greenandcoop_forecast.weather_data (4950 documents)
+```
+
+Upload du backup vers S3
+```bash
+aws s3 cp mongodb_backup_2026-01-05_14-06-15.gz \
+s3://p8-meteo/p8-backups/mongodb/
+```
+
+Emplacement final
+```bash
+s3://p8-meteo/p8-backups/mongodb/mongodb_backup_2026-01-05_14-06-15.gz
+```
+
+📌 La sauvegarde est :
+
+- horodatée ;
+
+- externalisée ;
+
+- restaurable.
+
+## 📊 Phase 5 — Monitoring & logs
+
+## 8 Logs MongoDB
+
+Les logs MongoDB sont centralisés dans AWS CloudWatch
+
+Les logs comprennent :
+
+- connexions ;
+
+- interruptions ;
+
+- performances ;
+
+- état du conteneur
+
+👉 Cette supervision répond aux exigences de surveillance cloud.
+
+✅ Validation finale
+
+Élément	                 Statut
+
+MongoDB sur ECS	         ✅
+Accès distant	           ✅
+Import S3 → MongoDB	     ✅
+Temps d’accessibilité    ✅
+Sauvegarde S3	           ✅
+Logs & monitoring	       ✅
+
+✅ Validation finale
+
+| Exigence du projet                        | Validation  |
+|:------------------------------------------|:----------- |
+| Déploiement MongoDB sur AWS ECS           | ✅         |
+| Accès distant sécurisé                    | ✅         |
+| Import des données depuis S3 dans MongoDB | ✅         |
+| Mesure du temps d’accès                   | ✅         |
+| Sauvegarde cloud dans S3                  | ✅         |
+| Monitoring et logs                        | ✅         |
