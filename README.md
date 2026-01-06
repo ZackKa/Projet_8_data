@@ -1015,7 +1015,7 @@ Résultat obtenu
 ```
 Données visibles dans MongoDB Compass
 
-##⏱ Phase 3 — Mesure du temps d’accessibilité aux données
+## ⏱ Phase 3 — Mesure du temps d’accessibilité aux données
 
 ## 6 🎯 Objectif
 
