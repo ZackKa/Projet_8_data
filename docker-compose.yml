@@ -1,20 +1,20 @@
 services:
   mongodb:
-    image: mongo:7.0
-    container_name: mongodb_p8
+    image: mongo:7.0 # Utilise l'image officielle MongoDB version 7.0
+    container_name: mongodb_p8 # Nom du conteneur
     ports:
-      - "27021:27017"
+      - "27021:27017" # Expose le port 27017 du conteneur sur le port 27021 de l'hôte. Cela permet de se connecter à MongoDB depuis l'hôte.
     volumes:
-      - projet_8_mongo_data:/data/db
+      - projet_8_mongo_data:/data/db # Montage d'un volume Docker pour persister les données MongoDB. Cela permet de conserver les données MongoDB même après le redémarrage du conteneur.
 
   python-migration:
-    build: .
-    container_name: python_migration_p8
+    build: . # Build l'image Docker à partir du Dockerfile local. Cela permet de créer une image Docker à partir du Dockerfile local.
+    container_name: python_migration_p8 # Nom du conteneur
     depends_on:
-      - mongodb
+      - mongodb # Dépend du conteneur MongoDB. Cela permet de démarrer le conteneur MongoDB avant le conteneur Python migration.
     env_file:
-      - .env
-    command: python import_s3_to_mongodb_conteneur.py
+      - .env # Charge les variables d'environnement depuis le fichier .env. Cela permet de charger les variables d'environnement depuis le fichier .env.
+    command: python import_s3_to_mongodb_conteneur.py # Exécute le script Python qui importe les données S3 vers MongoDB. Cela permet d'exécuter le script Python qui importe les données S3 vers MongoDB.
 
 volumes:
-  projet_8_mongo_data:
+  projet_8_mongo_data: # Nom du volume. Cela permet de créer un volume Docker pour persister les données MongoDB.

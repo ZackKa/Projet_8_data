@@ -7,7 +7,7 @@ import os
 BUCKET = "p8-meteo"
 KEY = "p8-processed/weather_mongodb_ready.json"
 
-
+#  URI MongoDB depuis variable d'environnement ou valeur par défaut locale
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
 DB_NAME = "p8_greenandcoop_forecast"
 COLLECTION_NAME = "weather_data"
