@@ -6,7 +6,8 @@ from pymongo import MongoClient  # Pour interagir avec MongoDB
 BUCKET = "p8-meteo"  # Nom du bucket S3
 KEY = "p8-processed/weather_mongodb_ready.json"  # Chemin/fichier JSON dans le bucket
 
-MONGO_URI = "mongodb://localhost:27017"  # URI de connexion à MongoDB local
+#MONGO_URI = "mongodb://localhost:27017"  # URI de connexion à MongoDB local
+MONGO_URI = "mongodb://localhost:28017,localhost:28018,localhost:28019/?replicaSet=rs0"
 DB_NAME = "p8_greenandcoop_forecast" # Nom de la base de données
 COLLECTION_NAME = "weather_data" # Nom de la collection
 

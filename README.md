@@ -588,6 +588,32 @@ Infoclimat : 1143 documents
 
 Weather Underground (France + Belgique) : 3807 documents
 
+## Version avec replication
+
+### création des dossier pour simuler serveur en local
+
+- lancer les serveurs avec : 
+```bash
+mongod --replSet rs0 --port 28019 --dbpath "C:\...\data\rs0-3"
+```
+- Aller sur serveur 1 avec mongosh --port 28017 puis lancer initialisation :
+```bash
+rs.initiate({
+...   _id: "rs0",
+...   members: [
+...     { _id: 0, host: "localhost:28017" },
+...     { _id: 1, host: "localhost:28018" },
+...     { _id: 2, host: "localhost:28019" }
+...   ]
+... })
+```
+- lancer le script d'import des données.
+- verifier sur mongosh le nombre de document avec :
+```bash
+use p8_greenandcoop_forecast
+db.weather_data.countDocuments()
+```
+Vérifiaction possible aussi sur compass avec les bon port
 
 # ÉTAPE 3
 
@@ -754,6 +780,41 @@ Qualité des données contrôlée
 
 👉 Cette étape valide la conteneurisation complète de la chaîne de migration.
 
+## Version avec replication.
+
+-Lancer sur le path du projet :
+```bash
+docker compose up -d --build mongo1 mongo2 mongo3
+```
+puis dans un nouveau terminal :
+```bash
+docker exec -it mongo1_p8 mongosh
+```
+initiate avec :
+```bash
+rs.initiate({
+...   _id: "rs0",
+...   members: [
+...     { _id: 0, host: "mongo1_p8:27017" },
+...     { _id: 1, host: "mongo2_p8:27017" },
+...     { _id: 2, host: "mongo3_p8:27017" }
+...   ]
+... })
+```
+Verifier les primary et secondary avec :
+```bash
+rs.status()
+```
+Puis lancer l'import des données avec :
+```bash
+docker compose up --build -d python-migration
+```
+Verifier le nombre de données sur chaque serveur mongo avec :
+```bash
+use p8_greenandcoop_forecast
+db.weather_data.countDocuments()
+```
+
 
 
 # 🚀 Étape 4 — Déploiement MongoDB sur AWS ECS, reporting et sauvegardes
@@ -838,6 +899,24 @@ S3 :
 
 
 ## 🧩 Phase 1 — Création de l’infrastructure AWS
+
+### Objectif de la partie AWS
+
+Déployer une infrastructure MongoDB dans le cloud respectant les contraintes suivantes :
+
+Hébergement sur AWS
+
+Utilisation de conteneurs / services AWS
+
+Mise en place de la réplication MongoDB
+
+Importation des données météo depuis Amazon S3
+
+Mesure des performances (temps d’accès)
+
+Mise en place des sauvegardes
+
+Configuration du monitoring et des logs
 
 ## 4 ☁️ Infrastructure AWS mise en place
 ### 4.1 Région AWS
@@ -967,6 +1046,449 @@ Clique sur Run Task
 📌 Une fois la Task lancée, tu peux récupérer l’IP publique dans la colonne Public IP pour te connecter depuis MongoDB Compass ou tes scripts Python :
 
 mongodb://<IP_PUBLIQUE_ECS>:27017
+
+
+## 3️⃣ Architecture finale : MongoDB répliqué sur EC2 (remplacement de la partie fargate)
+### 3.1 Création des instances EC2
+
+3 instances EC2
+
+- OS : Ubuntu 22.04 LTS
+
+- Type : t3.micro (free tier compatible)
+
+- Même VPC
+
+- Même Security Group
+
+Ports ouverts :
+
+- 22 (SSH)
+
+- 27017 (MongoDB)
+
+- Autorisation entre instances EC2
+
+Lancer les instances avec cette commande pour chacune (à adapter) :
+```bash
+ssh -i "(mon-chemin)\ma-key.pem" ubuntu@(ip-du-ec2)
+```
+
+Sur chaque instance :
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y gnupg curl
+curl -fsSL https://pgp.mongodb.com/server-7.0.asc | sudo gpg -o /usr/share/keyrings/mongodb-server-7.0.gpg --dearmor
+echo "deb [ arch=amd64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
+sudo apt update
+sudo apt install -y mongodb-org
+```
+verification d'instalation mongo et active au demarage avec :
+```bash
+mongod --version
+sudo systemctl start mongod
+sudo systemctl enable mongod
+```
+
+Verification du status, doit avoir active avec :
+```bash
+sudo systemctl status mongod
+```
+
+Activation du replica set dans :
+```bash
+sudo nano /etc/mongod.conf
+```
+```bash
+replication:
+  replSetName: rs0
+```
+```bash
+sudo systemctl restart mongod
+sudo systemctl enable mongod
+```
+
+## 4️⃣ Mise en place du Replica Set MongoDB
+
+Depuis l’instance primaire :
+```bash
+mongosh
+```
+A la suite de "test>" :
+```bash
+rs.initiate({
+  _id: "rs0",
+  members: [
+    { _id: 0, host: "IP-PRIVEE-EC2-1:27017" },
+    { _id: 1, host: "IP-PRIVEE-EC2-2:27017" },
+    { _id: 2, host: "IP-PRIVEE-EC2-3:27017" }
+  ]
+})
+```
+
+Vérification :
+```bash
+rs.status()
+```
+✔️ 1 Primary
+✔️ 2 Secondary
+
+## 5️⃣ Importation des données depuis Amazon S3
+### 5.1 Script d’import Python
+
+Script exécuté depuis une EC2
+
+Connexion MongoDB via URI Replica Set
+
+MONGO_URI = "mongodb://IP1:27017,IP2:27017,IP3:27017/?replicaSet=rs0"
+
+
+Fonctionnalités du script :
+
+Lecture JSON depuis S3
+
+Insertion dans MongoDB
+
+Vérification :
+
+nombre de documents
+
+doublons
+
+champs critiques manquants
+
+✔️ 4950 documents importés
+✔️ Répliqués automatiquement sur les 3 nœuds
+
+Pour lancer le script depuis ec2 :
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y python3 python3-pip
+pip3 install --upgrade pip
+pip3 install boto3==1.42.19 python-dateutil==2.9.0 pymongo==4.15.4 python-dotenv==1.1.0
+```
+Ensuite depuis un autre terminal non connecter sur ec2 mais depuis le poste local :
+```bash
+# script migration donnees
+scp -i "path-de-ma-key.pem" "path-de-mon-fichier\import_s3_to_aws_ECS.py" ubuntu@(ip-prive):~/
+# on peux mettre le .env pour un exercice
+scp -i "path-de-ma-key.pem" "path-de-mon-fichier\.env" ubuntu@(ip-prive):~/
+```
+On repart sur le terminal EC2 :
+```bash
+#Verification de l'import du script
+ls -l ~/
+#Verification des bases mongo
+python3 -c "from pymongo import MongoClient; import os; client = MongoClient(os.getenv('MONGO_URI_AWS')); print(client.list_database_names())"
+['admin', 'config', 'local']
+#Import des credentials pour que le script fonctionne
+export AWS_ACCESS_KEY_ID=*******
+export AWS_SECRET_ACCESS_KEY=******
+#Lancer le script
+python3 import_s3_to_aws_ECS.py
+```
+Doit retourner :
+```bash
+Récupération du fichier depuis S3...
+Nombre de documents à importer : 4950
+Documents importés avec succès : 4950
+
+--- Vérification post-import ---
+Total documents en base : 4950
+Nombre de doublons détectés : 0
+Documents sans température : 0
+Documents sans humidité : 0
+Documents sans pression : 0
+
+--- Import terminé ---
+```
+### 5.2 Vérification des document dans chaque ec2
+
+Dans le terminal EC2 on entre dans mongosh avec :
+```bash
+mongosh
+# On se connecte à la base
+use p8_greenandcoop_forecast
+# On compte le nombre de document
+db.weather_data.countDocuments()
+# Doit retourner 4950
+```
+
+## 6️⃣ Sauvegarde des données MongoDB
+### 6.1 Script de sauvegarde
+
+Utilisation de mongodump
+
+Export compressé .gz
+
+Upload automatique vers S3
+
+mongodump --uri "mongodb://IP1,IP2,IP3/?replicaSet=rs0" --archive=backup.gz --gzip
+
+Pour ça, dans le terminal connecté au primary EC2 on fait :
+```bash
+#instaler mongodump
+sudo apt install -y mongodb-database-tools
+mongodump --version
+```
+Dans un terminal en local on instal le script de sauvegarde dans ec2 avec :
+```bash
+scp -i "path-de-ma-key.pem" "path-de-mon-fichier\backup_mongodb_to_s3.py" ubuntu@(ip-prive):~/
+
+```
+On repart sur le terminal EC2 :
+```bash
+#Import des credentials pour que le script fonctionne
+export AWS_ACCESS_KEY_ID=*******
+export AWS_SECRET_ACCESS_KEY=******
+python3 backup_mongodb_to_s3.py
+```
+
+✔️ Sauvegarde locale
+✔️ Sauvegarde externalisée sur S3
+✔️ Historisation par timestamp
+
+## 7️⃣ Monitoring et logs
+### 7.1 CloudWatch
+
+Monitoring automatique des instances EC2 :
+
+CPU
+
+Réseau
+
+Disque
+
+Statut des instances
+
+8.2 Logs MongoDB
+
+Logs locaux :
+
+/var/log/mongodb/mongod.log
+
+Logs AWS :
+
+EC2 Metrics via CloudWatch
+
+🎯 Objectif atteint :
+
+Surveillance de la santé
+
+Détection d’incidents
+
+Traçabilité des opérations
+
+### 7.2 log mongo dans cloud watch
+
+### Objectif
+
+Mettre en place un monitoring centralisé des logs et métriques de MongoDB sur plusieurs instances EC2 via Amazon CloudWatch.
+
+### Pourquoi faire du monitoring ?
+
+- Détecter rapidement les problèmes (CPU élevé, saturation disque, erreurs MongoDB…).
+
+- Analyser les performances pour optimiser l’infrastructure.
+
+- Avoir un historique des logs et métriques pour les audits et débogages.
+
+- CloudWatch centralise toutes les informations depuis tes instances EC2 et fournit :
+
+  - Logs en temps réel
+
+  - Alertes (alarmes)
+
+  - Graphiques de métriques (CPU, RAM, disque, réseau)
+
+  - Analyse avancée via Logs Insights et métriques personnalisées
+
+### Prérequis
+
+- 3 instances EC2 Ubuntu 22.04 avec MongoDB installé.
+
+- Accès IAM avec permissions pour créer un rôle et attacher CloudWatch Agent.
+
+- Accès à AWS CloudWatch (console).
+
+### Étape 1 — Vérifier les logs MongoDB
+
+Sur chaque EC2, vérifier que MongoDB fonctionne et que les logs existent :
+
+```bash
+ls -l /var/log/mongodb/
+sudo tail -f /var/log/mongodb/mongod.log
+```
+
+On doit voir des lignes de logs comme : WiredTiger message et client metadata.
+
+### Étape 2 — Créer un rôle IAM pour EC2
+
+1 - Dans AWS → IAM → Roles → Create role
+
+2 - Sélectionner Service AWS → EC2
+
+3 - Choisir Use case → EC2 (Allows EC2 instances to call AWS services on your behalf)
+
+4 - Ajouter la politique gérée : CloudWatchAgentServerPolicy
+
+5 - Nommer le rôle : EC2-CloudWatch-Mongo-P8
+
+6 - Créer le rôle
+
+### Étape 3 — Attacher le rôle IAM aux instances EC2
+
+Pour chaque EC2 :
+
+- EC2 → Actions → Security → Modify IAM role
+
+- Sélectionner le rôle EC2-CloudWatch-Mongo-P8
+
+- Appliquer et attendre 1–2 minutes pour que le rôle soit actif
+
+💡 Le rôle IAM permet à CloudWatch Agent sur l’EC2 de publier des logs et métriques dans le compte AWS sans stocker de credentials directement sur l’instance.
+
+### Étape 4 — Installer CloudWatch Agent
+
+Sur chaque EC2 :
+
+Mettre à jour les paquets et télécharger le package :
+
+```bash
+sudo apt update
+wget https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb
+sudo dpkg -i amazon-cloudwatch-agent.deb
+```
+
+Vérifier l’outil :
+```bash
+/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -h
+```
+
+### Étape 5 — Configurer CloudWatch Agent
+
+Créer ou vérifier le fichier de configuration JSON pour MongoDB :
+```bash
+sudo nano /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+```
+
+Coller :
+```bash
+{
+  "logs": {
+    "logs_collected": {
+      "files": {
+        "collect_list": [
+          {
+            "file_path": "/var/log/mongodb/mongod.log",
+            "log_group_name": "/p8/mongodb/logs",
+            "log_stream_name": "{instance_id}",
+            "timestamp_format": "%Y-%m-%dT%H:%M:%S.%f"
+          }
+        ]
+      }
+    }
+  },
+  "metrics": {
+    "append_dimensions": {
+      "InstanceId": "${aws:InstanceId}"
+    },
+    "metrics_collected": {
+      "cpu": {
+        "measurement": ["cpu_usage_idle", "cpu_usage_user", "cpu_usage_system"],
+        "metrics_collection_interval": 60
+      },
+      "mem": {
+        "measurement": ["mem_used_percent"],
+        "metrics_collection_interval": 60
+      },
+      "disk": {
+        "measurement": ["used_percent"],
+        "metrics_collection_interval": 60,
+        "resources": ["/"]
+      }
+    }
+  }
+}
+```
+puis ctrl+o , entrée, ctrl+x
+
+Démarrer et appliquer la configuration :
+```bash
+sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+-a fetch-config \
+-m ec2 \
+-c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json \
+-s
+```
+
+Vérifier que le service est actif :
+```bash
+sudo systemctl status amazon-cloudwatch-agent
+```
+
+On doit voir Active: active (running).
+
+💡 Cette étape permet à CloudWatch Agent de collecter et envoyer les logs MongoDB et les métriques système dans CloudWatch.
+
+### Étape 6 — Vérifier les logs et métriques sur CloudWatch
+Logs
+
+- AWS → CloudWatch → Logs → Groupe /p8/mongodb/logs
+
+- Vérifier les flux de journaux pour chaque instance EC2 (i-xxxx)
+
+- Cliquer sur un flux → Voir les logs en temps réel
+
+Metrics
+
+- AWS → CloudWatch → Metrics → EC2 → Per-Instance Metrics
+
+- Vérifier :
+
+  - CPU Utilization
+
+  - Memory
+
+  - Disk
+
+  - Network
+
+Résultat attendu
+
+- Les 3 EC2 envoient leurs logs MongoDB dans CloudWatch.
+
+- Les métriques système sont visibles par instance.
+
+- Possibilité de créer alertes et dashboards pour suivre l’état en temps réel.
+
+Points 
+
+- Monitoring = visibilité sur l’infrastructure.
+
+- CloudWatch centralise logs + métriques.
+
+- Permet de réagir rapidement aux problèmes et d’optimiser les ressources.
+
+- Séparation des permissions via IAM roles pour plus de sécurité.
+
+## 8 Accès aux données 
+
+On copie le script dans l'instance EC2
+```bash
+scp -i "ec2-mongo-key.pem" "measure_access_time_ecs.py" ubuntu@<IP_DU_PRIMARY>:~/
+```
+Dans l'EC2 connecté on fait :
+```bash
+python3 --version
+python3 -m pip install pymongo
+```
+On lance le script :
+```bash
+python3 measure_access_time_ecs.py
+
+```
+
 
 
 ## 📥 Phase 2 — Import des données depuis S3 vers MongoDB ECS

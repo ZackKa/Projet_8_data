@@ -3,7 +3,9 @@ import datetime    # Pour gérer les dates et générer des noms de fichiers uni
 import boto3       # Pour interagir avec AWS S3
 import os          # Pour accéder aux variables d'environnement
 
+
 MONGO_URI = os.getenv("MONGO_URI_AWS", "mongodb://16.171.43.201:27017") # Récupère l'URI MongoDB depuis une variable d'environnement, ou utilise une valeur par défaut
+MONGO_URI = os.getenv("MONGO_URI_AWS", "mongodb://172.31.43.179:27017,172.31.47.171:27017,172.31.32.226:27017/?replicaSet=rs0")
 BUCKET = "p8-meteo" # Nom du bucket S3 où sera stocké le backup
 BACKUP_PREFIX = "p8-backups/mongodb"  # Dossier dans le bucket pour organiser les backups
 

@@ -10,7 +10,10 @@ KEY = "p8-processed/weather_mongodb_ready.json"
 
 #MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/") 16.171.43.201
 #MONGO_URI_AWS = os.getenv("MONGO_URI_AWS", "mongodb://16.170.213.236:27017")
-MONGO_URI_AWS = os.getenv("MONGO_URI_AWS", "mongodb://16.171.43.201:27017")
+#MONGO_URI_AWS = "mongodb://172.31.43.179:27017,172.31.32.226:27017,172.31.47.171:27017/?replicaSet=rs0"
+MONGO_URI_AWS = os.getenv("MONGO_URI_AWS","mongodb://172.31.43.179:27017,172.31.32.226:27017,172.31.47.171:27017/?replicaSet=rs0")
+
+#MONGO_URI_AWS = os.getenv("MONGO_URI_AWS", "mongodb://16.171.43.201:27017")
 DB_NAME = "p8_greenandcoop_forecast"
 COLLECTION_NAME = "weather_data"
 

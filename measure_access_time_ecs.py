@@ -5,7 +5,8 @@ import os  # Pour accéder aux variables d'environnement (utile pour les configu
 # Configuration
 # Récupère l'URI de connexion MongoDB depuis les variables d'environnement.
 # Si la variable n'existe pas, on utilise l'URI par défaut fourni (ex. serveur AWS)
-MONGO_URI_AWS = os.getenv("MONGO_URI_AWS", "mongodb://16.170.213.236:27017")
+#MONGO_URI_AWS = os.getenv("MONGO_URI_AWS", "mongodb://16.170.213.236:27017")
+MONGO_URI_AWS = "mongodb://172.31.32.226:27017"
 
 DB_NAME = "p8_greenandcoop_forecast" # Nom de la base de données à utiliser
 COLLECTION_NAME = "weather_data" # Nom de la collection  où les données météo sont stockées
